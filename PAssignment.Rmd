@@ -1,0 +1,165 @@
+Peer Assignment 1
+1.First we shall load all packages necessary for our data analysis.
+
+library(data.table)
+## Warning: package 'data.table' was built under R version 3.1.2
+library(ggplot2)
+2.Load the data from my working directory using (read.csv)command.
+
+adata<-read.csv("activity.csv",header=TRUE)
+3.Preprocessing the data for analysis. converting the date field into Date and interval into Factor. ```
+
+adata$date<-as.Date(adata$date,format="%Y-%m-%d")
+adata$interval<-as.factor(adata$interval)
+4.Checking the result using str().
+
+str(adata)
+## 'data.frame':    17568 obs. of  3 variables:
+##  $ steps   : int  NA NA NA NA NA NA NA NA NA NA ...
+##  $ date    : Date, format: "2012-10-01" "2012-10-01" ...
+##  $ interval: Factor w/ 288 levels "0","5","10","15",..: 1 2 3 4 5 6 7 8 9 10 ...
+Calculating the mean and median total number of steps per day,ignoring the missing values.
+
+stepsPerDay<-aggregate(steps~date,adata,sum)
+colnames(stepsPerDay)<-c("date","steps")
+head(stepsPerDay)
+##         date steps
+## 1 2012-10-02   126
+## 2 2012-10-03 11352
+## 3 2012-10-04 12116
+## 4 2012-10-05 13294
+## 5 2012-10-06 15420
+## 6 2012-10-07 11015
+5.We shall make a histogram,steps per day using ggplot2().
+
+ggplot(stepsPerDay, aes(x = steps)) + 
+       geom_histogram(fill = "salmon", binwidth = 1000) + 
+        labs(title="Histogram of Steps per Day", 
+             x = "Number of Steps per Day", y = "Times in Count per Day") + theme_bw() 
+plot of chunk unnamed-chunk-6
+
+6.We will calculate mean and median steps per day.
+
+stepsPerdayMean<-mean(stepsPerDay$steps,na.rm=TRUE)
+stepsPerDayMedian<-median(stepsPerDay$steps,na.rm=TRUE)
+stepsPerdayMean
+## [1] 10766
+stepsPerDayMedian
+## [1] 10765
+7.Average daily activiy pattern.
+
+stepsPerIntervals<-aggregate(adata$steps,by=list(interval=adata$interval),FUN=mean,na.rm=TRUE)
+
+stepsPerIntervals$interval<-as.integer(levels(stepsPerIntervals$interval)[stepsPerIntervals$interval])
+colnames(stepsPerIntervals)<-c("interval","steps")
+8.Now we will make a plot of time-series average stepe per day versus 5 minutes intervals.
+
+ggplot(stepsPerIntervals, aes(x=interval, y=steps)) +   
+        geom_line(color="red", size=1) +  
+        labs(title="Average Daily Activity Pattern", x="Interval", y="Number of steps") +  
+        theme_bw()
+plot of chunk unnamed-chunk-9 9.Imputing the missing values.
+
+missingValues<-sum(is.na(adata$steps))
+missingValues
+## [1] 2304
+10.Filling all missing data in the dataset(adata).
+
+#creating a function naFill(data,pervalues)
+naFill <- function(data, pervalues) {
+        naIndex <- which(is.na(data$steps))
+        naReplace <- unlist(lapply(naIndex, FUN=function(idx){
+                interval = data[idx,]$interval
+                pervalues[pervalues$interval == interval,]$steps
+        }))
+        fillSteps <- data$steps
+        fillSteps[naIndex] <- naReplace
+        fillSteps
+}
+adataFill <- data.frame(  
+        steps = naFill(adata, stepsPerIntervals),  
+        date = adata$date,  
+        interval = adata$interval)
+str(adataFill)
+## 'data.frame':    17568 obs. of  3 variables:
+##  $ steps   : num  1.717 0.3396 0.1321 0.1509 0.0755 ...
+##  $ date    : Date, format: "2012-10-01" "2012-10-01" ...
+##  $ interval: Factor w/ 288 levels "0","5","10","15",..: 1 2 3 4 5 6 7 8 9 10 ...
+##checking adataFill for missing data.
+
+sum(is.na(adataFill$steps))
+## [1] 0
+###there are no missing values left in the dataset(adataFill).
+11.Plotting a histogram of total number of steps per day.
+
+fillStepsPerDay <- aggregate(steps ~ date, adataFill, sum)
+colnames(fillStepsPerDay ) <- c("date","steps")
+
+ ggplot(fillStepsPerDay , aes(x = steps)) + 
+ geom_histogram(fill = "blue", binwidth = 1000) + 
+ labs(title="Histogram of Steps Taken per Day", 
+ x = "Number of Steps per Day", y = "Time in Counts per Day") +     theme_bw()  
+plot of chunk unnamed-chunk-12
+
+12.Calculating the mean and median steps per day.
+
+stepsfillMean   <- mean(fillStepsPerDay$steps, na.rm=TRUE)
+stepsfillMedian <- median(fillStepsPerDay$steps, na.rm=TRUE)
+stepsfillMean
+## [1] 10766
+stepsfillMedian
+## [1] 10766
+13.Comparing the means and medians before and after filling the missing values in the dataset.
+
+1.Before filling the missing values:
+
+Mean : 10766 Median: 10765
+
+2.After filling the missing value:
+
+Mean : 10766.19 Median: 10766.19
+
+After filling the missing value the mean and median are equal. Since our data follow t -distribution imputing the missing values slightli increases the peak,which does not affect the prediction.
+
+Differences in activity patterns between weekdays and weekends.
+For this purpouse we use the filled-in dataset. 1.Creatibg a table with columns indicating the days of the week.
+
+weekdays_steps <- function(data) {
+    weekdays_steps <- aggregate(data$steps, by=list(interval = data$interval),
+                          FUN=mean, na.rm=T)
+    
+    weekdays_steps$interval <- 
+            as.integer(levels(weekdays_steps$interval)[weekdays_steps$interval])
+    colnames(weekdays_steps) <- c("interval", "steps")
+    weekdays_steps
+    }
+2.Subseting the table into weekends and weekdays,creating a factor variable.
+
+data_by_weekdays <- function(data) {
+    data$weekday <- 
+            as.factor(weekdays(data$date)) # weekdays
+    weekend_data <- subset(data, weekday %in% c("Saturday","Sunday"))
+    weekday_data <- subset(data, !weekday %in% c("Saturday","Sunday"))
+
+    weekend_steps <- weekdays_steps(weekend_data)
+    weekday_steps <- weekdays_steps(weekday_data)
+
+    weekend_steps$dayofweek <- rep("weekend", nrow(weekend_steps))
+    weekday_steps$dayofweek <- rep("weekday", nrow(weekday_steps))
+
+    data_by_weekdays <- rbind(weekend_steps, weekday_steps)
+    data_by_weekdays$dayofweek <- as.factor(data_by_weekdays$dayofweek)
+    data_by_weekdays
+}
+
+data_weekdays <- data_by_weekdays(adataFill)
+3.Creating a panel of plots comparing the average steps per 5-minutes interval accross the weekdays and the weekends.
+
+ggplot(data_weekdays, aes(x=interval, y=steps)) + 
+        geom_line(color="violet") + 
+        facet_wrap(~ dayofweek, nrow=2, ncol=1) +
+        labs(x="Interval", y="Number of steps") +
+        theme_bw()
+plot of chunk unnamed-chunk-16
+
+Comparing the histograms we may inffer that weeekdays activity has a greater peak for all steps intervals than the weekend avtivity.I might be because the working weeks are full of physical avtivities in contrast to the lazy weekends.
